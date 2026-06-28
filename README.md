@@ -1,5 +1,9 @@
 # `btrcache`
 
+---
+
+[![License](https://img.shields.io/github/license/lucas-azdias/btrcache)](https://raw.github.com/lucas-azdias/btrcache/master/LICENSE)
+
 High-performance caching tools, memoization decorators, and cache collections for Python.
 
 ---
