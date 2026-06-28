@@ -52,8 +52,8 @@ def compute(x):
 
 ## Roadmap
 
-* [ ] Key generators
-* [ ] Asynchronous decorators
+* [X] Key generators
+* [X] Asynchronous decorators
 * [ ] Create tests
 * [ ] Release in PyPi
 * [ ] Synchronous decorators
