@@ -1,8 +1,10 @@
 # `btrcache`
 
-[![License](https://img.shields.io/github/license/lucas-azdias/btrcache)](https://raw.github.com/lucas-azdias/btrcache/master/LICENSE)
-
+[![Latest PyPI version](https://img.shields.io/pypi/v/btrcache)](https://pypi.org/project/btrcache/)
+[![Tests workflow status](https://img.shields.io/github/actions/workflow/status/lucas-azdias/btrcache/tests.yml?label=tests)](https://github.com/tkem/cachetools/actions/workflows/tests.yml)
+[![Publish workflow status](https://img.shields.io/github/actions/workflow/status/lucas-azdias/btrcache/publish.yml?label=publish)](https://github.com/tkem/cachetools/actions/workflows/publish.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/lucas-azdias/btrcache/main.svg)](https://codecov.io/gh/lucas-azdias/btrcache)
+[![License](https://img.shields.io/github/license/lucas-azdias/btrcache)](https://raw.github.com/lucas-azdias/btrcache/master/LICENSE)
 
 High-performance caching tools, memoization decorators, and cache collections for Python.
 
