@@ -59,7 +59,7 @@ jobs:
 
     build:
         name: Building
-        needs: check
+        needs: [check, tests]
 
         runs-on: ubuntu-latest
 
