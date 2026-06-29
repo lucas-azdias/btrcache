@@ -59,7 +59,7 @@ jobs:
 
     build:
         name: Building
-        needs: check
+        needs: [check, tests]
 
         runs-on: ubuntu-latest
 
@@ -77,9 +77,6 @@ jobs:
 
             - name: Syncing dependencies
               run: uv sync --frozen
-
-            - name: Installing Hatch
-              uses: pypa/hatch@37b00c3d2221438fa79084b92e81ee1819d6c630 # v1.17.0
 
             - name: Building redistributables
               run: uv build
