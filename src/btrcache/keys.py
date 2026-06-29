@@ -15,7 +15,7 @@ import typing
 if typing.TYPE_CHECKING:
     import collections.abc
 
-__all__: typing.Final = ("hashkey", "typedkey")
+__all__: typing.Final = ("hashkey", "typed_hashkey")
 
 
 class __HashedTuple(tuple[typing.Any, ...]):
@@ -85,7 +85,7 @@ def hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
     return __HashedTuple(args + __kwargs_marker + tuple(sorted(kwargs.items())))
 
 
-def typedkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
+def typed_hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
     """Build a type-sensitive hashable cache key.
 
     In addition to argument values, the type of every positional and keyword
