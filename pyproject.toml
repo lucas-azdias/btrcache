@@ -33,6 +33,8 @@ dev = [
     "poethepoet>=0.46.0",
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.16",
 ]
 
@@ -48,6 +50,7 @@ check = "ruff check ./src"
 check-fix = "ruff check ./src --fix"
 format = "ruff format ./src"
 types = "pyright"
+tests = "pytest"
 
 [tool.ruff]
 include = ["src/**", "tests/**"]
@@ -58,6 +61,7 @@ format.indent-style = "space"
 lint.preview = true
 lint.select = ["ALL"]
 lint.ignore = ["D203", "D213"]
+lint.per-file-ignores = { "tests/**"=["D103", "S101", "FBT003", "FURB152"] }
 
 [tool.pyright]
 include = ["src", "tests"]
@@ -71,6 +75,10 @@ reportMissingTypeArgument = "error"
 reportUnknownParameterType = "error"
 reportUnknownArgumentType = "error"
 reportUnknownVariableType = "error"
+
+[tool.pytest]
+addopts = ["-rA", "-q", "--strict", "--cov=src", "--cov-branch", "--cov-report=term", "--cov-report=xml"]
+testpaths = ["tests"]
 
 [tool.hatch]
 build.targets.wheel.packages = ["src/btrcache"]

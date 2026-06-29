@@ -53,6 +53,10 @@ jobs:
 
                   echo "Version check passed."
 
+    tests:
+        name: Testing
+        uses: ./.github/workflows/tests.yml
+
     build:
         name: Building
         needs: check
@@ -64,7 +68,7 @@ jobs:
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
             - name: "Setting up Python"
-              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # 6.3.0
+              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
               with:
                   python-version-file: ".python-version"
 
@@ -75,7 +79,7 @@ jobs:
               run: uv sync --frozen
 
             - name: Installing Hatch
-              uses: pypa/hatch@37b00c3d2221438fa79084b92e81ee1819d6c630 # 1.17.0
+              uses: pypa/hatch@37b00c3d2221438fa79084b92e81ee1819d6c630 # v1.17.0
 
             - name: Building redistributables
               run: uv build
