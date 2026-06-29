@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+    workflow_call:
+    push:
+        branches:
+            - "*"
+    pull_request:
+        branches:
+            - main
+            - develop
+
+jobs:
+    code_qa:
+        name: Code quality assurance testing
+
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Doing checkout
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+            - name: "Setting up Python"
+              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+              with:
+                  python-version-file: ".python-version"
+
+            - name: Installing `uv`
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+
+            - name: Syncing dependencies
+              run: uv sync --dev --frozen
+
+            - name: Validating typing
+              run: uv run poe types
+
+            - name: Validating formatting
+              run: uv run poe check
+
+            - name: Running `pytest` tests
+              run: uv run poe tests
+
+            - name: Uploading coverage reports to Codecov
+              uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 #v7.0.0
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}

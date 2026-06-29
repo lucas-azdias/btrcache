@@ -1,0 +1,139 @@
+name: Publish
+
+on:
+    push:
+        tags:
+            - "v*.*.*"
+
+env:
+    PACKAGE_NAME: btrcache
+    OWNER_NAME: lucas.azdias
+
+jobs:
+    check:
+        name: Checking new release information
+
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Verifying workflow trigger
+              run: |
+                  if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+                      echo "This workflow must be run from a tag."
+                      exit 1
+                  fi
+
+            - name: Extracting new version
+              id: extract
+              run: |
+                  echo "NEW_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+            - name: Installing jq
+              run: sudo apt update && sudo apt install -y jq
+
+            - name: Fetching package latest version on PyPI
+              id: fetch
+              run: |
+                  latest=$(curl -fsSL "https://pypi.org/pypi/$PACKAGE_NAME/json" |
+                      jq -r '.info.version // "0.0.0"')
+
+                  echo "LATEST_VERSION=$latest" >> "$GITHUB_OUTPUT"
+
+            - name: Comparing versions
+              env:
+                  NEW_VERSION: ${{ steps.extract.outputs.NEW_VERSION }}
+                  LATEST_VERSION: ${{ steps.fetch.outputs.LATEST_VERSION }}
+              run: |
+                  HIGHEST=$(printf '%s\n%s\n' "$LATEST_VERSION" "$NEW_VERSION" | sort -V | tail -n1)
+
+                  if [ "$HIGHEST" != "$NEW_VERSION" ] || [ "$NEW_VERSION" = "$LATEST_VERSION" ]; then
+                      echo "Version $NEW_VERSION is not newer than $LATEST_VERSION."
+                      exit 1
+                  fi
+
+                  echo "Version check passed."
+
+    tests:
+        name: Testing
+        uses: ./.github/workflows/tests.yml
+
+    build:
+        name: Building
+        needs: check
+
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Doing checkout
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+            - name: "Setting up Python"
+              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+              with:
+                  python-version-file: ".python-version"
+
+            - name: Installing `uv`
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+
+            - name: Syncing dependencies
+              run: uv sync --frozen
+
+            - name: Installing Hatch
+              uses: pypa/hatch@37b00c3d2221438fa79084b92e81ee1819d6c630 # v1.17.0
+
+            - name: Building redistributables
+              run: uv build
+
+            - name: Uploading artifacts
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: ${{ env.PACKAGE_NAME }}-dist
+                  path: dist/*
+
+    pypi_publish:
+        name: PyPI publishing
+        needs: build
+
+        runs-on: ubuntu-latest
+
+        environment:
+            name: pypi
+
+        permissions:
+            id-token: write
+
+        steps:
+            - name: Downloading artifacts
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: ${{ env.PACKAGE_NAME }}-dist
+                  path: dist
+
+            - name: Installing `uv`
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+
+            - name: Publishing redistributables
+              run: uv publish dist/*
+
+    github_release:
+        name: Releasing on Github
+        needs: build
+
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: write
+
+        steps:
+            - name: Downloading artifacts
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: ${{ env.PACKAGE_NAME }}-dist
+                  path: dist
+
+            - name: Creating release
+              uses: softprops/action-gh-release@2bb465e97f322d3cb2a965294d483e0d26a67aa9 # v3.0.1
+              with:
+                  files: dist/*.whl,dist/*.tar.gz
+                  make_latest: true
+                  generate_release_notes: true
