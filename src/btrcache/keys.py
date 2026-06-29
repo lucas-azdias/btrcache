@@ -15,25 +15,50 @@ import typing
 if typing.TYPE_CHECKING:
     import collections.abc
 
-__all__: typing.Final = ("hashkey", "typed_hashkey")
+__all__: typing.Final = ("HashedCacheKey", "hashkey", "typed_hashkey")
 
 
-class __HashedTuple(tuple[typing.Any, ...]):
-    """Tuple subclass that caches its computed hash value."""
+class HashedCacheKey:
+    """Immutable tuple-like object that caches its computed hash value.
 
-    __slots__ = ("__hashvalue",)
+    The hash is computed lazily on first use and cached for subsequent
+    calls to avoid repeated tuple hashing overhead in cache key generation.
+    """
 
     __hashvalue: int
 
+    def __init__(self, iterable: collections.abc.Iterable[typing.Any]) -> None:
+        """Initialize a tuple wrapper used for cached hash computation.
+
+        This constructor materializes the provided iterable into a concrete
+        tuple, which is used as the immutable backing storage for hashing and
+        equality operations.
+
+        Args:
+            iterable (Iterable[Any]):
+                Input iterable whose elements will form the internal tuple.
+
+        """
+        self.__tuple: tuple[typing.Any, ...] = tuple(iterable)
+
+    @typing.override
+    def __eq__(self, value: object, /) -> bool:
+        # Keys must share the same class
+        if not isinstance(value, HashedCacheKey):
+            return NotImplemented
+
+        # If they share the same hash, must be the same key
+        return self.__hash__() == value.__hash__()
+
     @typing.override
     def __hash__(self) -> int:
+        # Try-except is used instead of `is None` for
+        # performance issues
         try:
             return self.__hashvalue
         except AttributeError:
-            # IGNORE: Generic resolution in `tuple` was ignored for
-            # performance issues, as it would be necessary to use
-            # `super().__class__` instead.
-            self.__hashvalue = self.__hashvalue = tuple.__hash__(self)  # pyright: ignore[reportUnknownMemberType]
+            # It will raise error if tuple has unhashable element
+            self.__hashvalue = self.__tuple.__hash__()
             return self.__hashvalue
 
     @typing.override
@@ -53,7 +78,7 @@ class __HashedTuple(tuple[typing.Any, ...]):
 # causing cache key collisions.
 #
 # The value is a class object because it is guaranteed unique, immutable and hashable.
-__kwargs_marker = (__HashedTuple,)
+__kwargs_marker = (HashedCacheKey,)
 
 
 def hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
@@ -78,11 +103,11 @@ def hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
     """
     # No keyword arguments are present
     if not kwargs:
-        return __HashedTuple(args)
+        return HashedCacheKey(args)
 
     # Appends a marker followed by sorted keyword argument pairs to ensure
     # deterministic ordering and distinguish them from positional arguments
-    return __HashedTuple(args + __kwargs_marker + tuple(sorted(kwargs.items())))
+    return HashedCacheKey(args + __kwargs_marker + tuple(sorted(kwargs.items())))
 
 
 def typed_hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
@@ -120,4 +145,4 @@ def typed_hashkey(*args: object, **kwargs: object) -> collections.abc.Hashable:
         # Append the type of each keyword argument value
         key += tuple(type(v) for _, v in sorted_kwargs)
 
-    return __HashedTuple(key)
+    return HashedCacheKey(key)
