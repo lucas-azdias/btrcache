@@ -18,7 +18,7 @@ import functools
 import inspect
 import typing
 
-from src.cache.keys import hashkey
+from src.btrcache.keys import hashkey
 
 if typing.TYPE_CHECKING:
     import collections.abc
