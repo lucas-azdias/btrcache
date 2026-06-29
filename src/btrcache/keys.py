@@ -4,18 +4,124 @@
 # Source: https://github.com/tkem/cachetools/blob/48284d73d0a8834c9c50f8d41bb99e6f93b2dfed/src/cachetools/keys.py
 # License: MIT (See LICENSE file for details)
 
-"""Utilities for constructing hashable cache keys.
+"""Utilities for constructing deterministic, hashable cache keys.
 
-This module provides helper functions for converting function arguments
-into immutable, hashable objects suitable for use as cache keys.
+This module provides strategies for converting positional and keyword
+arguments into immutable tuple representations suitable for hashing and
+cache lookups, along with a lightweight wrapper that lazily caches the
+computed hash value.
 """
 
 import typing
 
-__all__: typing.Final = ("HashedCacheKey",)
+__all__: typing.Final = (
+    "HashedKey",
+    "KeyHashStrategy",
+    "KeyHashStrategyProtocol",
+    "KeyHashTypedStrategy",
+)
+
+# Immutable tuple representation used internally for cache keys.
+type RawCacheKey = tuple[typing.Any, ...]
 
 
-class HashedCacheKey:
+class KeyHashStrategyProtocol(typing.Protocol):
+    """Protocol implemented by cache key generation strategies."""
+
+    @staticmethod
+    def hashkey(args: tuple[object, ...], kwargs: dict[str, object]) -> RawCacheKey:
+        """Convert function arguments into a hashable cache key.
+
+        Args:
+            args (tuple[object, ...]):
+                Positional arguments.
+
+            kwargs (dict[str, object]):
+                Keyword arguments.
+
+        Returns:
+            RawCacheKey:
+                Immutable tuple representing the cache key.
+
+        """
+        raise NotImplementedError
+
+
+class KeyHashStrategy:
+    """Generate cache keys using only argument values."""
+
+    @staticmethod
+    def hashkey(args: tuple[object, ...], kwargs: dict[str, object]) -> RawCacheKey:
+        """Construct a deterministic cache key.
+
+        Positional arguments are stored first. Keyword arguments are
+        sorted by name and appended after a sentinel marker to ensure
+        deterministic ordering and avoid ambiguity with positional
+        arguments.
+
+        Args:
+            args (tuple[object, ...]):
+                Positional arguments.
+
+            kwargs (dict[str, object]):
+                Keyword arguments.
+
+        Returns:
+            RawCacheKey:
+                Immutable tuple representing the cache key.
+
+        """
+        # No keyword arguments are present
+        if not kwargs:
+            return tuple(args)
+
+        # Appends a marker followed by sorted keyword argument pairs to ensure
+        # deterministic ordering and distinguish them from positional arguments
+        return args + HashedKey.KWARGS_MARKER + tuple(sorted(kwargs.items()))
+
+
+class KeyHashTypedStrategy:
+    """Generate cache keys that also encode argument types."""
+
+    @staticmethod
+    def hashkey(args: tuple[object, ...], kwargs: dict[str, object]) -> RawCacheKey:
+        """Construct a type-aware cache key.
+
+        In addition to argument values, the runtime type of each argument
+        is appended to distinguish values that compare equal but have
+        different types.
+
+        Args:
+            args (tuple[object, ...]):
+                Positional arguments.
+
+            kwargs (dict[str, object]):
+                Keyword arguments.
+
+        Returns:
+            RawCacheKey:
+                Immutable tuple representing the cache key.
+
+        """
+        # Starts with the positional argument values and appends
+        # every value type to distinguish between them in the final
+        # hash
+        key = args + tuple(type(v) for v in args)
+
+        if kwargs:
+            # Sorts keyword arguments to produce a deterministic key
+            sorted_kwargs = tuple(sorted(kwargs.items()))
+
+            # Appends the sentinel marker and the keyword argument values
+            key += HashedKey.KWARGS_MARKER + sorted_kwargs
+
+            # Append the type of each keyword argument value
+            key += tuple(type(v) for _, v in sorted_kwargs)
+
+        return key
+
+
+class HashedKey:
     """Immutable tuple-like object that caches its computed hash value.
 
     The hash is computed lazily on first use and cached for subsequent
@@ -33,14 +139,14 @@ class HashedCacheKey:
     # causing cache key collisions.
     #
     # The value is a class object because it is guaranteed unique, immutable and hashable.
-    __kwargs_marker: tuple[type] = (tuple,)
+    KWARGS_MARKER: typing.ClassVar[tuple[type]] = (tuple,)
 
     def __init__(
         self,
         args: tuple[object, ...],
         kwargs: dict[str, object],
         *,
-        is_typed: bool = False,
+        hash_strategy: KeyHashStrategyProtocol = KeyHashStrategy,
     ) -> None:
         """Initialize a hashable cache key from function arguments.
 
@@ -54,20 +160,18 @@ class HashedCacheKey:
             kwargs (dict[str, object]):
                 Keyword arguments.
 
-            is_typed (bool):
-                If True, include argument types in the generated key to
-                distinguish values that compare equal but have different types.
+            hash_strategy (KeyHashStrategyProtocol):
+                Strategy used to normalize the arguments into an immutable cache
+                key representation.
 
         """
         self.__hashvalue: int
-        self.__tuple: tuple[typing.Any, ...] = (
-            self.__hashkey(args, kwargs) if not is_typed else self.__typed_hashkey(args, kwargs)
-        )
+        self.__tuple: RawCacheKey = hash_strategy.hashkey(args, kwargs)
 
     @typing.override
     def __eq__(self, value: object, /) -> bool:
         # Keys must share the same class
-        if not isinstance(value, HashedCacheKey):
+        if not isinstance(value, HashedKey):
             return NotImplemented
 
         # If they share the same hash, must be the same key
@@ -90,7 +194,7 @@ class HashedCacheKey:
         # (keeping hash stored is not safe)
         return self.__tuple
 
-    def __setstate__(self, state: tuple[typing.Any, ...]) -> None:
+    def __setstate__(self, state: RawCacheKey) -> None:
         """Restore the object state during unpickling.
 
         This method reconstructs the internal immutable tuple representation
@@ -99,7 +203,7 @@ class HashedCacheKey:
         unpickling if needed.
 
         Args:
-            state (tuple[typing.Any, ...]):
+            state (RawCacheKey):
                 The previously serialized tuple representing the cache key.
                 This contains only the semantic argument structure and does
                 not include any runtime-cached values such as the hash.
@@ -107,35 +211,3 @@ class HashedCacheKey:
         """
         # Restores internal tuple only
         self.__tuple = state
-
-    @staticmethod
-    def __hashkey(args: tuple[object, ...], kwargs: dict[str, object]) -> tuple[typing.Any, ...]:
-        # No keyword arguments are present
-        if not kwargs:
-            return tuple(args)
-
-        # Appends a marker followed by sorted keyword argument pairs to ensure
-        # deterministic ordering and distinguish them from positional arguments
-        return args + HashedCacheKey.__kwargs_marker + tuple(sorted(kwargs.items()))
-
-    @staticmethod
-    def __typed_hashkey(
-        args: tuple[object, ...],
-        kwargs: dict[str, object],
-    ) -> tuple[typing.Any, ...]:
-        # Starts with the positional argument values and appends
-        # every value type to distinguish between them in the final
-        # hash
-        key = args + tuple(type(v) for v in args)
-
-        if kwargs:
-            # Sorts keyword arguments to produce a deterministic key
-            sorted_kwargs = tuple(sorted(kwargs.items()))
-
-            # Appends the sentinel marker and the keyword argument values
-            key += HashedCacheKey.__kwargs_marker + sorted_kwargs
-
-            # Append the type of each keyword argument value
-            key += tuple(type(v) for _, v in sorted_kwargs)
-
-        return key
